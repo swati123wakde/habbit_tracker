@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Development rules for the Habit Tracker (no authentication).
+// They validate document shape but allow anyone with the app config to
+// read/write. Add Firebase Auth and scope data by uid before going live.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function validHabit(d) {
+      return d.keys().hasAll(['name', 'description', 'points', 'createdAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+        && d.description is string && d.description.size() <= 200
+        && d.points is int && d.points >= 1 && d.points <= 100;
+    }
+
+    match /habits/{habitId} {
+      allow read: if true;
+      allow create, update: if validHabit(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /habit_logs/{logId} {
+      allow read: if true;
+      allow create, update: if
+        request.resource.data.habitId is string
+        && request.resource.data.date is string
+        && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && logId == request.resource.data.habitId + '_' + request.resource.data.date
+        && exists(/databases/$(database)/documents/habits/$(request.resource.data.habitId));
+      allow delete: if true;
+    }
+  }
+}
